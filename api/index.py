@@ -16,3 +16,4 @@ from backend.main import app
 
 # Vercel's Python runtime looks for `app` in this file
 __all__ = ["app"]
+
