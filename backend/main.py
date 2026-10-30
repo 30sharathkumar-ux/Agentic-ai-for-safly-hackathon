@@ -20,6 +20,8 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
@@ -69,6 +71,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class ApiPrefixMiddleware(BaseHTTPMiddleware):
+    """Ensures endpoints match whether Vercel or a reverse proxy forwards as /api/* or strips to /*."""
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if (
+            not path.startswith("/api")
+            and not path.startswith("/assets")
+            and path not in ("/", "/index.html", "/favicon.ico", "/docs", "/openapi.json", "/redoc")
+        ):
+            request.scope["path"] = f"/api{path}"
+        return await call_next(request)
+
+
+app.add_middleware(ApiPrefixMiddleware)
 
 
 @app.on_event("startup")

@@ -85,7 +85,7 @@ export const AuditPage: React.FC<AuditPageProps> = ({ showToast }) => {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <a
-            href={api.getUsingFallback() ? '#' : '/api/audit/export'}
+            href={api.getUsingFallback() ? '#' : `${api.getBaseUrl()}/audit/export`}
             onClick={(e) => {
               if (api.getUsingFallback()) {
                 e.preventDefault();

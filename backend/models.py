@@ -8,10 +8,43 @@ import enum
 from datetime import datetime
 from typing import Optional
 
+import os
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-DATABASE_URL = "sqlite:///./agentshield.db"
-engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+# ---------------------------------------------------------------------------
+# Database URL and Engine Setup
+# Supports both persistent hosted PostgreSQL (e.g., Neon / Supabase) and local SQLite
+# ---------------------------------------------------------------------------
+RAW_DB_URL = os.getenv("DATABASE_URL")
+
+if RAW_DB_URL:
+    # Normalize postgres:// to postgresql:// for SQLAlchemy 1.4+ / 2.0 compatibility
+    if RAW_DB_URL.startswith("postgres://"):
+        DATABASE_URL = RAW_DB_URL.replace("postgres://", "postgresql://", 1)
+    else:
+        DATABASE_URL = RAW_DB_URL
+else:
+    # If running in serverless (e.g. Vercel) without DATABASE_URL, use /tmp as temporary fallback
+    if os.getenv("VERCEL") == "1":
+        DATABASE_URL = "sqlite:////tmp/agentshield.db"
+    else:
+        DATABASE_URL = "sqlite:///./agentshield.db"
+
+# Engine creation with dialect-specific connection options
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    # Hosted PostgreSQL (Neon, Supabase, Vercel Postgres)
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,      # verify connections before use (vital for serverless cold starts)
+        pool_recycle=300,        # recycle connections every 5 min
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -117,11 +150,23 @@ class ApprovalRequest(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 # DB initialisation
 # ---------------------------------------------------------------------------
+_db_initialized = False
 
 def create_db_and_tables() -> None:
+    global _db_initialized
     SQLModel.metadata.create_all(engine)
+    _db_initialized = True
+    try:
+        from .demo import seed_agents
+        with Session(engine) as s:
+            seed_agents(s)
+    except Exception:
+        pass
 
 
 def get_session():
+    global _db_initialized
+    if not _db_initialized:
+        create_db_and_tables()
     with Session(engine) as session:
         yield session

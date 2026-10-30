@@ -315,7 +315,15 @@ const fallbackListeners: Set<FallbackListener> = new Set();
 
 class ApiService {
   private isFallback = false;
-  private baseUrl = '/api';
+  private baseUrl = (
+    (typeof import.meta !== 'undefined' &&
+      (import.meta.env?.VITE_API_BASE || import.meta.env?.VITE_API_URL)) ||
+    '/api'
+  ).replace(/\/$/, '');
+
+  public getBaseUrl(): string {
+    return this.baseUrl;
+  }
 
   public subscribeToFallback(listener: FallbackListener): () => void {
     fallbackListeners.add(listener);
